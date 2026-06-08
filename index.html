@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>営業カレンダー</title>
+  <style>
+    :root {
+      --holiday-bg: #ffefbf;
+      --holiday-color: #dd0000;
+      --today-bg: #d4edff;
+      --today-outline: #3399ff;
+      --header-bg: #f5f5f5;
+      --border: 1px solid #e0dfe3;
+      --sat-color: #2255bb;
+      --sun-color: #cc2200;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', 'Helvetica Neue', Arial, sans-serif;
+      background: #fff;
+      color: #333;
+      padding: 10px;
+    }
+
+    .cal-wrapper {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .cal-block {
+      flex: 1;
+      min-width: 280px;
+      max-width: 380px;
+    }
+
+    .cal-title {
+      text-align: center;
+      font-size: 1.05em;
+      font-weight: bold;
+      padding: 9px 0;
+      background: var(--header-bg);
+      border: var(--border);
+      border-bottom: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th {
+      background: var(--header-bg);
+      font-weight: bold;
+      text-align: center;
+      font-size: 11px;
+      padding: 5px 3px;
+      border: var(--border);
+      color: #333;
+    }
+    th.sun { color: var(--sun-color); }
+    th.sat { color: var(--sat-color); }
+
+    td {
+      padding: 5px;
+      border: var(--border);
+      font-size: 14px;
+      height: 30px;
+      vertical-align: middle;
+      text-align: left;
+      background: #fff;
+      color: #333;
+    }
+    td.empty { background: #fafafa; }
+    td.holiday { background: var(--holiday-bg); color: var(--holiday-color); }
+    td.today {
+      outline: 2px solid var(--today-outline);
+      outline-offset: -2px;
+      font-weight: bold;
+    }
+    td.today:not(.holiday) { background: var(--today-bg); }
+    td.sat:not(.holiday) { color: var(--sat-color); }
+    td.sun:not(.holiday) { color: var(--sun-color); }
+
+    .legend {
+      margin-top: 12px;
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      align-items: center;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-box {
+      width: 14px;
+      height: 14px;
+      border: var(--border);
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .legend-box.h { background: var(--holiday-bg); }
+    .legend-box.t { background: var(--today-bg); outline: 2px solid var(--today-outline); outline-offset: -2px; }
+  </style>
+</head>
+<body>
+
+<div class="cal-wrapper" id="calendars"></div>
+<div class="legend">
+  <span class="legend-item"><span class="legend-box h"></span>定休日</span>
+  <span class="legend-item"><span class="legend-box t"></span>本日</span>
+</div>
+
+<script>
+  // ===== 国民の祝日（振替休日含む） =====
+  // mentwo.com/calendar のデータに準拠。毎年末に翌年分を追記してください。
+  const NATIONAL_HOLIDAYS = {
+    // 2025
+    '2025-07-21': '海の日',
+    '2025-08-11': '山の日',
+    '2025-09-15': '敬老の日',
+    '2025-09-23': '秋分の日',
+    '2025-10-13': 'スポーツの日',
+    '2025-11-03': '文化の日',
+    '2025-11-23': '勤労感謝の日',
+    '2025-11-24': '振替休日',
+    // 2026
+    '2026-01-01': '元日',
+    '2026-01-12': '成人の日',
+    '2026-02-11': '建国記念の日',
+    '2026-02-23': '天皇誕生日',
+    '2026-03-20': '春分の日',
+    '2026-04-29': '昭和の日',
+    '2026-05-03': '憲法記念日',
+    '2026-05-04': 'みどりの日',
+    '2026-05-05': 'こどもの日',
+    '2026-05-06': '振替休日',
+    '2026-07-20': '海の日',
+    '2026-08-11': '山の日',
+    '2026-09-21': '敬老の日',
+    '2026-09-23': '秋分の日',
+    '2026-10-12': 'スポーツの日',
+    '2026-11-03': '文化の日',
+    '2026-11-23': '勤労感謝の日',
+    // 2027
+    '2027-01-01': '元日',
+    '2027-01-11': '成人の日',
+    '2027-02-11': '建国記念の日',
+    '2027-02-23': '天皇誕生日',
+    '2027-03-21': '春分の日',
+    '2027-04-29': '昭和の日',
+    '2027-05-03': '憲法記念日',
+    '2027-05-04': 'みどりの日',
+    '2027-05-05': 'こどもの日',
+    '2027-07-19': '海の日',
+    '2027-08-11': '山の日',
+    '2027-09-20': '敬老の日',
+    '2027-09-23': '秋分の日',
+    '2027-10-11': 'スポーツの日',
+    '2027-11-03': '文化の日',
+    '2027-11-23': '勤労感謝の日',
+  };
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  function isHoliday(y, m, d) {
+    const dow = new Date(y, m - 1, d).getDay(); // 0=日, 6=土
+    if (dow === 0 || dow === 6) return true;
+    return !!NATIONAL_HOLIDAYS[`${y}-${pad2(m)}-${pad2(d)}`];
+  }
+
+  function buildCalendar(year, month) {
+    const today  = new Date();
+    const todayY = today.getFullYear();
+    const todayM = today.getMonth() + 1;
+    const todayD = today.getDate();
+
+    const MONTH_JP = ['1月','2月','3月','4月','5月','6月',
+                      '7月','8月','9月','10月','11月','12月'];
+    const DOW_JP   = ['日','月','火','水','木','金','土'];
+
+    const firstDow    = new Date(year, month - 1, 1).getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    // セル配列を構築（空セル含む）
+    const cells = [];
+    for (let i = 0; i < firstDow; i++)        cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++)     cells.push(d);
+    while (cells.length % 7 !== 0)             cells.push(null);
+
+    let html = `<div class="cal-block">`;
+    html += `<div class="cal-title">${year}年${MONTH_JP[month - 1]}</div>`;
+    html += `<table><thead><tr>`;
+    for (let i = 0; i < 7; i++) {
+      const cls = i === 0 ? ' sun' : i === 6 ? ' sat' : '';
+      html += `<th class="${cls.trim()}">${DOW_JP[i]}</th>`;
+    }
+    html += `</tr></thead><tbody>`;
+
+    for (let i = 0; i < cells.length; i += 7) {
+      html += '<tr>';
+      for (let j = 0; j < 7; j++) {
+        const d = cells[i + j];
+        if (d === null) {
+          html += '<td class="empty"></td>';
+        } else {
+          const holiday = isHoliday(year, month, d);
+          const isToday = (year === todayY && month === todayM && d === todayD);
+          const dow = (firstDow + d - 1) % 7; // 0=日, 6=土
+
+          const cls = [
+            holiday              ? 'holiday' : '',
+            isToday              ? 'today'   : '',
+            !holiday && dow === 0 ? 'sun'    : '',
+            !holiday && dow === 6 ? 'sat'    : '',
+          ].filter(Boolean).join(' ');
+
+          html += `<td${cls ? ` class="${cls}"` : ''}>${d}</td>`;
+        }
+      }
+      html += '</tr>';
+    }
+
+    html += `</tbody></table></div>`;
+    return html;
+  }
+
+  // 当月・翌月を表示
+  const now = new Date();
+  let y = now.getFullYear();
+  let m = now.getMonth() + 1;
+  let y2 = m === 12 ? y + 1 : y;
+  let m2 = m === 12 ? 1 : m + 1;
+
+  document.getElementById('calendars').innerHTML =
+    buildCalendar(y, m) + buildCalendar(y2, m2);
+
+  // iframe内で使用される場合、親ページに実際の高さを通知する
+  function notifyHeight() {
+    const h = document.documentElement.scrollHeight;
+    if (window.parent !== window) {
+      window.parent.postMessage({ calendarHeight: h }, '*');
+    }
+  }
+  window.addEventListener('load', notifyHeight);
+  window.addEventListener('resize', notifyHeight);
+</script>
+
+</body>
+</html>

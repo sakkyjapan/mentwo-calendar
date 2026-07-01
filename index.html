@@ -187,9 +187,8 @@
   };
 
   // ===== 店舗独自の休業日（お盆・年末年始・臨時休業など） =====
-  // おちゃのこネット管理画面「デザイン管理 > カレンダー設定 > イベント設定」の
-  // 休業日（黄色セル）のうち、土日・国民の祝日を除いた店舗固有の休みだけをここに列挙する。
-  // admin39.ocnk.net の設定を変更したら、ここも合わせて更新すること。
+  // admin39 管理画面「運用設定 > カレンダー設定 > イベント設定」の黄色セルのうち、
+  // 土日・祝日を除いた店舗独自の休みをここへ反映する（管理画面が正）。
   const SHOP_CLOSED_DAYS = {
     '2026-08-12': 'お盆休み',
     '2026-08-13': 'お盆休み',
@@ -202,11 +201,10 @@
   function pad2(n) { return String(n).padStart(2, '0'); }
 
   function isHoliday(y, m, d) {
-    const key = `${y}-${pad2(m)}-${pad2(d)}`;
     const dow = new Date(y, m - 1, d).getDay(); // 0=日, 6=土
     if (dow === 0 || dow === 6) return true;
-    if (SHOP_CLOSED_DAYS[key]) return true;
-    return !!NATIONAL_HOLIDAYS[key];
+    const key = `${y}-${pad2(m)}-${pad2(d)}`;
+    return !!SHOP_CLOSED_DAYS[key] || !!NATIONAL_HOLIDAYS[key];
   }
 
   // ===== 六曜・暦注データ =====
